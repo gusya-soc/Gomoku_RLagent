@@ -1,7 +1,7 @@
 from enum import IntEnum
 import pygame
 from pygame.locals import *
-
+import numpy as np
 GAME_VERSION = 'V1.0'
 
 REC_SIZE = 50
@@ -16,7 +16,6 @@ BUTTON_HEIGHT = 50
 
 SCREEN_WIDTH = MAP_WIDTH + INFO_WIDTH
 SCREEN_HEIGHT = MAP_HEIGHT
-
 class MAP_ENTRY_TYPE(IntEnum):
 	MAP_EMPTY = 0,
 	MAP_PLAYER_ONE = 1,
@@ -28,6 +27,8 @@ class Map():
 		self.width = width
 		self.height = height
 		self.map = [[0 for x in range(self.width)] for y in range(self.height)]
+		self.np_map  = np.array(self.map)
+		print(self.np_map)
 		self.steps = []
 	
 	def reset(self):
@@ -65,6 +66,7 @@ class Map():
 	def click(self, x, y, type):
 		self.map[y][x] = type.value
 		self.steps.append((x,y))
+		
 
 	def drawChess(self, screen):
 		player_one = (255, 251, 240)

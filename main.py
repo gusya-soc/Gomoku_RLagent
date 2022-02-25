@@ -2,7 +2,11 @@ import pygame
 from pygame.locals import *
 from GameMap import *
 from ChessAI import *
+from gameEnv import *
+import egoAI
 
+
+BOARD_SIZE = 16
 
 class Button():
 	def __init__(self, screen, text, x, y, color, enable):
@@ -90,7 +94,18 @@ class Game():
 		self.AI = ChessAI(CHESS_LEN)
 		self.AI_first = AI_first
 		self.winner = None
+		self.env = GomokuEnv(board_size=BOARD_SIZE)
+		self.agent = egoAI.bakamono_no1(self.env.time_step_spec(),action_spec=self.env.action_spec(),board_size=BOARD_SIZE)
+		self.agent.initialize()
+		self.policy = self.agent.policy
+		self.test(policy=self.policy)
+
 	
+	def test(self,**kwargs):
+		policy = kwargs['policy']
+		action = policy.action(self.env.reset())
+		print(action)
+
 	def start(self):
 		self.is_play = True
 		self.player = MAP_ENTRY_TYPE.MAP_PLAYER_ONE
@@ -101,6 +116,7 @@ class Game():
 		else:
 			self.useAI = False
 
+
 	def play(self):
 		self.clock.tick(60)
 		
@@ -108,18 +124,24 @@ class Game():
 		pygame.draw.rect(self.screen, light_yellow, pygame.Rect(0, 0, MAP_WIDTH, SCREEN_HEIGHT))
 		pygame.draw.rect(self.screen, (255, 255, 255), pygame.Rect(MAP_WIDTH, 0, INFO_WIDTH, SCREEN_HEIGHT))
 		
+		self.time_step = self.env.reset()
+
 		for button in self.buttons:
 			button.draw()
 		
 		if self.is_play and not self.isOver():
 			if self.useAI:
+				# print(self.player,'player')
+
 				x, y = self.AI.findBestChess(self.map.map, self.player)
 				self.checkClick(x, y, True)
+
 				if self.mode == USER_VS_AI_MODE:
 					self.useAI = False
 			
-			if self.mode != AI_VS_AI_MODE:
+			if self.mode == USER_VS_AI_MODE or self.mode == USER_VS_USER_MODE:
 				if self.action is not None:
+					# print(np.array(self.map.map),'map')
 					self.checkClick(self.action[0], self.action[1])
 					self.action = None
 					if self.mode == USER_VS_AI_MODE:
@@ -128,6 +150,14 @@ class Game():
 				if not self.isOver():
 					self.changeMouseShow()
 			
+			if self.mode ==EGO_VS_AI_MODE:
+				self.time_step  = self.env.update_state()
+				action = self.policy.action(self.time_step)
+				self.checkClick(action[0],action[1])
+				
+				
+
+
 		if self.isOver():
 			self.showWinner()
 
@@ -148,6 +178,7 @@ class Game():
 	
 	def checkClick(self,x, y, isAI=False):
 		self.AI.click(self.map, x, y, self.player)
+		# print(self.map.map,x,y,self.player)
 		if self.AI.isWin(self.map.map, self.player):
 			self.winner = self.player
 			self.click_button(self.buttons[1])
