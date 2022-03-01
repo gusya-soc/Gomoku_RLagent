@@ -20,16 +20,15 @@ class GomokuEnv(py_environment.PyEnvironment):
     def __init__(self,board_size=16):
         super().__init__()
         self.board_size = board_size
-        self._action = array_spec.BoundedArraySpec(shape=(),dtype=np.int32,minimum=0,maximum=self.board_size**2,name='action')
+        self._action = array_spec.BoundedArraySpec(shape=(2,),dtype=np.float32,minimum=0,maximum=16,name='action')
         self._observation_spec = array_spec.BoundedArraySpec(shape=(board_size,board_size,3),maximum=1,dtype=np.float32,name='observation')
         # self._rewards_spec = array_spec.ArraySpec(shape=(1,),dtype=np.float32,name='reward')
         # self._current_state = np.zeros(shape=(board_size,board_size),dtype=np.float32)
         # self._oppo_state = np.zeros(shape=(board_size,board_size),dtype=np.float32)
         # self._empty_state = np.zeros(shape=(board_size,board_size),dtype=np.float32)
         # self._rewards = 0.
-        # self._observation_spec = {'current_state':array_spec.ArraySpec(shape=(self.board_size,self.board_size,1),dtype=np.float32),
-        #                           'oppo_state':array_spec.ArraySpec(shape=(self.board_size,self.board_size,1),dtype=np.float32),
-        #                           'empty_state':array_spec.ArraySpec(shape=(self.board_size,self.board_size,1),dtype=np.float32)}
+        # self._observation_spec = {'state':array_spec.ArraySpec(shape=(self.board_size,self.board_size,3),dtype=np.float32),
+        #                             'vector':array_spec.BoundedArraySpec((5,),np.float32,minimum=0,maximum=1)}
 
         
                             
@@ -55,10 +54,21 @@ class GomokuEnv(py_environment.PyEnvironment):
         return ts.restart(self._observation,reward_spec=self._rewards)        
 
 
+    def split_map(self,map,where):
+        map = np.where(map==where,1).reshape(self.board_size,self.board_size,1)
+        return map
+    def update_state(self,map,steps): 
+        self._oppo_state = self.split_map(map,1)
+        self._current_state = self.split_map(map,2)
+        self._empty_state = self.split_map(map,0)
+        self.observation = np.concatenate([self._current_state,self._oppo_state,self._empty_state],axis=2,dtype=np.float32)
 
-    def update_state(self): 
-        pass
 
+        # TODO
+        self._last_step = np.zeros((self.board_size,self.board_size,1))
+        step_x = steps[-1][0]
+        step_y = steps[-1][1]
+        self._last_step[step_x][step_y] = 1
     def _step(self,action):
 
         # self._current_state[:] = 1

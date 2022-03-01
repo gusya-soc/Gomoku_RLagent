@@ -4,6 +4,7 @@ from GameMap import *
 from ChessAI import *
 from gameEnv import *
 import egoAI
+from egoAI import ActorNetwork as net
 
 
 BOARD_SIZE = 16
@@ -95,17 +96,10 @@ class Game():
 		self.AI_first = AI_first
 		self.winner = None
 		self.env = GomokuEnv(board_size=BOARD_SIZE)
-		self.agent = egoAI.bakamono_no1(self.env.time_step_spec(),action_spec=self.env.action_spec(),board_size=BOARD_SIZE)
+		self.agent = egoAI.bakamono_no1(self.env.time_step_spec(),action_spec=self.env.action_spec(),actor_net=egoAI.actor_net,value_net=egoAI.value_net)
 		self.agent.initialize()
 		self.policy = self.agent.policy
-		self.test(policy=self.policy)
-
-	
-	def test(self,**kwargs):
-		policy = kwargs['policy']
-		action = policy.action(self.env.reset())
-		print(action)
-
+		
 	def start(self):
 		self.is_play = True
 		self.player = MAP_ENTRY_TYPE.MAP_PLAYER_ONE
@@ -135,13 +129,14 @@ class Game():
 
 				x, y = self.AI.findBestChess(self.map.map, self.player)
 				self.checkClick(x, y, True)
-
+				print(np.array(self.map.map),'map')
+				print(self.map.steps)
 				if self.mode == USER_VS_AI_MODE:
 					self.useAI = False
 			
 			if self.mode == USER_VS_AI_MODE or self.mode == USER_VS_USER_MODE:
 				if self.action is not None:
-					# print(np.array(self.map.map),'map')
+					
 					self.checkClick(self.action[0], self.action[1])
 					self.action = None
 					if self.mode == USER_VS_AI_MODE:
@@ -151,8 +146,11 @@ class Game():
 					self.changeMouseShow()
 			
 			if self.mode ==EGO_VS_AI_MODE:
-				self.time_step  = self.env.update_state()
+				self.env.update_state(self.map.map,self.map.steps)
+				self.time_step = self.env.step(None)
 				action = self.policy.action(self.time_step)
+				action = net.extend_action(action)
+
 				self.checkClick(action[0],action[1])
 				
 				
