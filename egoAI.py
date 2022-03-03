@@ -1,4 +1,3 @@
-from re import A
 from tf_agents.agents.dqn import dqn_agent
 from tf_agents.agents import ReinforceAgent
 from tf_agents.utils import common
@@ -11,13 +10,9 @@ from tf_agents.utils import nest_utils
 from tf_agents.networks import utils
 from tf_agents.specs import tensor_spec
 
-
-import gameEnv
-
-env = gameEnv.GomokuEnv(board_size=16)
-# env = FlattenActionWrapper(env)
-env = tf_py_environment.TFPyEnvironment(env)
-
+# env = GomokuEnv(board_size=16)
+# # env = FlattenActionWrapper(env)
+# env = tf_py_environment.TFPyEnvironment(env)
 
 
 class bakamono_no1(ReinforceAgent):
@@ -133,46 +128,3 @@ class ActorNetwork(Network):
         return action
 
 
-
-actor_net = ActorNetwork(observation_spec=env.observation_spec(),action_spec=env.action_spec(),pre_layers=conv_layers,pre_combiner=None,fc_layer_params=(64,128,64))
-value_net = value_network.ValueNetwork(env.observation_spec(),conv_layer_params=conv_params)
-# test = bakamono_no1(time_step_spec=env.time_step_spec(),action_spec=env.action_spec(),observation_spec=env.observation_spec())
-# print(env.observation_spec())
-# print(env.time_step_spec()[-1])
-# time_step = env.reset()
-# action = test(time_step.observation,time_step.step_type)
-# print(action)
-# print(env.action_spec())
-value_net.create_variables(env.observation_spec())
-actor_net.create_variables(env.observation_spec())
-print(actor_net.summary())
-print(value_net.summary())
-# agent = dqn_agent.DqnAgent(
-#     env.time_step_spec(),
-#     env.action_spec(),
-#     q_network=q_net,
-#     optimizer=tf.keras.optimizers.Adam(),
-#     td_errors_loss_fn=common.element_wise_squared_loss
-# )
-# agent.initialize()
-# agent.policy
-agent = ReinforceAgent(time_step_spec=env.time_step_spec(),
-                        action_spec=env.action_spec(),
-                        actor_network=actor_net,
-                        optimizer=tf.keras.optimizers.Adam(),
-                        )
-agent.initialize()
-print(agent.policy)
-policy = agent.policy
-ts = env.reset()
-action = policy.action(ts)
-print(action)
-ts = env.step(action)
-action = policy.action(ts)
-print(list(action[0].numpy()[0].astype('int32')))
-# print(agent.collect_data_spec)
-replay_buffer_signature = tensor_spec.from_spec(
-      agent.collect_data_spec)
-replay_buffer_signature = tensor_spec.add_outer_dim(
-    replay_buffer_signature)
-print(replay_buffer_signature)

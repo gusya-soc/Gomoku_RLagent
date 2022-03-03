@@ -2,7 +2,7 @@ import pygame
 from pygame.locals import *
 from GameMap import *
 from ChessAI import *
-from gameEnv import *
+# from gameEnv import *
 import egoAI
 from egoAI import ActorNetwork as net
 
@@ -118,7 +118,7 @@ class Game():
 		pygame.draw.rect(self.screen, light_yellow, pygame.Rect(0, 0, MAP_WIDTH, SCREEN_HEIGHT))
 		pygame.draw.rect(self.screen, (255, 255, 255), pygame.Rect(MAP_WIDTH, 0, INFO_WIDTH, SCREEN_HEIGHT))
 		
-		self.time_step = self.env.reset()
+		# self.time_step = self.env.reset()
 
 		for button in self.buttons:
 			button.draw()
@@ -129,8 +129,8 @@ class Game():
 
 				x, y = self.AI.findBestChess(self.map.map, self.player)
 				self.checkClick(x, y, True)
-				print(np.array(self.map.map),'map')
-				print(self.map.steps)
+				# print(np.array(self.map.map),'map')
+				# print(self.map.steps)
 				if self.mode == USER_VS_AI_MODE:
 					self.useAI = False
 			
