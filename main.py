@@ -7,7 +7,7 @@ import egoAI
 from egoAI import ActorNetwork as net
 
 
-BOARD_SIZE = 16
+BOARD_SIZE = 15
 
 class Button():
 	def __init__(self, screen, text, x, y, color, enable):

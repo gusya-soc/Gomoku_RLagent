@@ -15,15 +15,13 @@ from tf_agents.trajectories import time_step as ts
 from tf_agents.trajectories import TimeStep,StepType
 from tf_agents.environments.wrappers import FlattenActionWrapper
 from ChessAI import GAME_PLAY_MODE,AI_RUN_FIRST
-from train import TrainGame as Game
 
-game = Game("FIVE CHESS ", GAME_PLAY_MODE, AI_RUN_FIRST)
 class GomokuEnv(py_environment.PyEnvironment):
 
-    def __init__(self,board_size=16):
+    def __init__(self,board_size=15):
         super().__init__()
         self.board_size = board_size
-        self._action = array_spec.BoundedArraySpec(shape=(2,),dtype=np.float32,minimum=0,maximum=16,name='action')
+        self._action = array_spec.BoundedArraySpec(shape=(2,),dtype=np.float32,minimum=0,maximum=15,name='action')
         self._observation_spec = array_spec.BoundedArraySpec(shape=(board_size,board_size,3),maximum=1,dtype=np.float32,name='observation')
         # self._rewards_spec = array_spec.ArraySpec(shape=(1,),dtype=np.float32,name='reward')
         # self._current_state = np.zeros(shape=(board_size,board_size),dtype=np.float32)
@@ -57,20 +55,21 @@ class GomokuEnv(py_environment.PyEnvironment):
 
 
     def split_map(self,map,where):
-        map = np.where(map==where,1).reshape(self.board_size,self.board_size,1)
+        print(map.shape)
+        map = np.where(map==where,1,0).reshape(self.board_size,self.board_size,1)
         return map
     def update_state(self,map,steps): 
         self._oppo_state = self.split_map(map,1)
         self._current_state = self.split_map(map,2)
         self._empty_state = self.split_map(map,0)
-        self.observation = np.concatenate([self._current_state,self._oppo_state,self._empty_state],axis=2,dtype=np.float32)
+        self._observation = np.concatenate([self._current_state,self._oppo_state,self._empty_state],axis=2,dtype=np.float32)
 
 
-        # TODO
-        self._last_step = np.zeros((self.board_size,self.board_size,1))
-        step_x = steps[-1][0]
-        step_y = steps[-1][1]
-        self._last_step[step_x][step_y] = 1
+        # # TODO
+        # self._last_step = np.zeros((self.board_size,self.board_size,1))
+        # step_x = steps[-1][0]
+        # step_y = steps[-1][1]
+        # self._last_step[step_x][step_y] = 1
     def _step(self,action):
 
         # self._current_state[:] = 1
@@ -91,25 +90,6 @@ class GomokuEnv(py_environment.PyEnvironment):
         # return TimeStep(step_type=StepType.LAST,reward=self._rewards,discount=1.0,observation=self._ob)
 
 
-class TrainEnv(GomokuEnv):
-    def __init__(self):
-        super().__init__()
-
-
-        #init_step = 
-        #开始一个Game，AI下一步棋。返回初始棋盘。
-        #the trian step = 
-        #Action下一步棋，将坐标返回给gameAI再下一步棋，更新棋盘。返回该棋盘的observation
-    def _reset(self):
-        self.game.start()
-        self.game.play()
-        map = self.game.map.map
-        step = self.game.map.steps
-        self.update_state(map,step)
-    
-    def _step(self, action):
-        pass
-        
 
 # test = GomokuEnv()
 # print(test.time_step_spec())

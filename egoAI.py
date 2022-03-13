@@ -123,7 +123,7 @@ class ActorNetwork(Network):
     
     @staticmethod
     def extend_action(action):
-        action = action[0].numpy()[0].astype('int32')
+        action = action.astype('int32')
         action = list(action)
         return action
 
