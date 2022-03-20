@@ -21,7 +21,7 @@ class GomokuEnv(py_environment.PyEnvironment):
     def __init__(self,board_size=15):
         super().__init__()
         self.board_size = board_size
-        self._action = array_spec.BoundedArraySpec(shape=(2,),dtype=np.float32,minimum=0,maximum=15,name='action')
+        self._action = array_spec.BoundedArraySpec(shape=(2,),dtype=np.float32,minimum=0,maximum=board_size-1,name='action')
         self._observation_spec = array_spec.BoundedArraySpec(shape=(board_size,board_size,3),maximum=1,dtype=np.float32,name='observation')
         # self._rewards_spec = array_spec.ArraySpec(shape=(1,),dtype=np.float32,name='reward')
         # self._current_state = np.zeros(shape=(board_size,board_size),dtype=np.float32)
@@ -42,10 +42,10 @@ class GomokuEnv(py_environment.PyEnvironment):
         return self._observation_spec
 
     def _reset(self):
-        self._current_state = np.zeros(shape=(self.board_size,self.board_size,1),dtype=np.float32)
-        self._oppo_state = np.zeros(shape=(self.board_size,self.board_size,1),dtype=np.float32)
-        self._empty_state = np.zeros(shape=(self.board_size,self.board_size,1),dtype=np.float32)
-        self._observation = np.concatenate([self._current_state,self._oppo_state,self._empty_state],axis=2,dtype=np.float32)
+        self._current_state = np.zeros(shape=(self.board_size,self.board_size),dtype=np.float32)
+        self._oppo_state = np.zeros(shape=(self.board_size,self.board_size),dtype=np.float32)
+        self._empty_state = np.zeros(shape=(self.board_size,self.board_size),dtype=np.float32)
+        self._observation = np.stack((self._current_state,self._oppo_state,self._empty_state),axis=2)
         # self._rewards = np.zeros((1,),dtype=np.float32)
         # self._ob = {'current_state':np.zeros(shape=(self.board_size,self.board_size,1),dtype=np.float32),
         #             'oppo_state':np.zeros(shape=(self.board_size,self.board_size,1),dtype=np.float32),
@@ -55,14 +55,14 @@ class GomokuEnv(py_environment.PyEnvironment):
 
 
     def split_map(self,map,where):
-        print(map.shape)
-        map = np.where(map==where,1,0).reshape(self.board_size,self.board_size,1)
+        # print(map.shape)
+        map = np.where(map==where,1,0).reshape(self.board_size,self.board_size).astype(np.float32)
         return map
     def update_state(self,map,steps): 
         self._oppo_state = self.split_map(map,1)
         self._current_state = self.split_map(map,2)
         self._empty_state = self.split_map(map,0)
-        self._observation = np.concatenate([self._current_state,self._oppo_state,self._empty_state],axis=2,dtype=np.float32)
+        self._observation = np.stack((self._current_state,self._oppo_state,self._empty_state),axis=2)
 
 
         # # TODO
@@ -113,67 +113,67 @@ class GomokuEnv(py_environment.PyEnvironment):
 # print(test.time_step_spec())
 # a = utils.validate_py_environment(test,episodes=5)
 
-from egoAI import ActorNetwork
-from tf_agents.networks import value_network
-from tf_agents.agents import ReinforceAgent
-from tf_agents.specs import tensor_spec
-env = GomokuEnv()
-env = tf_py_environment.TFPyEnvironment(env)
-conv_filters = 8
-k_size = (3,3)
-stride = (1,1)
-conv_params = [(conv_filters,k_size,stride),(conv_filters*2,k_size,stride),(conv_filters*4,k_size,stride)]
-conv_layers = tf.keras.models.Sequential([tf.keras.layers.Conv2D(8,(3,3),(1,1),activation='relu'),
-                                    tf.keras.layers.Conv2D(16,(3,3),(1,1),activation='relu'),
-                                    tf.keras.layers.Conv2D(32,(3,3),(1,1),activation='relu'),
-                                    tf.keras.layers.Flatten()])
+# from egoAI import ActorNetwork
+# from tf_agents.networks import value_network
+# from tf_agents.agents import ReinforceAgent
+# from tf_agents.specs import tensor_spec
+# env = GomokuEnv()
+# env = tf_py_environment.TFPyEnvironment(env)
+# conv_filters = 8
+# k_size = (3,3)
+# stride = (1,1)
+# conv_params = [(conv_filters,k_size,stride),(conv_filters*2,k_size,stride),(conv_filters*4,k_size,stride)]
+# conv_layers = tf.keras.models.Sequential([tf.keras.layers.Conv2D(8,(3,3),(1,1),activation='relu'),
+#                                     tf.keras.layers.Conv2D(16,(3,3),(1,1),activation='relu'),
+#                                     tf.keras.layers.Conv2D(32,(3,3),(1,1),activation='relu'),
+#                                     tf.keras.layers.Flatten()])
 
 
 
-combiner = tf.keras.layers.Concatenate(axis=-1)
+# combiner = tf.keras.layers.Concatenate(axis=-1)
 
 
-actor_net = ActorNetwork(observation_spec=env.observation_spec(),action_spec=env.action_spec(),pre_layers=conv_layers,pre_combiner=None,fc_layer_params=(64,128,64))
-value_net = value_network.ValueNetwork(env.observation_spec(),conv_layer_params=conv_params)
-# test = bakamono_no1(time_step_spec=env.time_step_spec(),action_spec=env.action_spec(),observation_spec=env.observation_spec())
-# print(env.observation_spec())
-# print(env.time_step_spec()[-1])
-# time_step = env.reset()
-# action = test(time_step.observation,time_step.step_type)
-# print(action)
-# print(env.action_spec())
-value_net.create_variables(env.observation_spec())
-actor_net.create_variables(env.observation_spec())
-print(actor_net.summary())
-print(value_net.summary())
-# agent = dqn_agent.DqnAgent(
-#     env.time_step_spec(),
-#     env.action_spec(),
-#     q_network=q_net,
-#     optimizer=tf.keras.optimizers.Adam(),
-#     td_errors_loss_fn=common.element_wise_squared_loss
-# )
+# actor_net = ActorNetwork(observation_spec=env.observation_spec(),action_spec=env.action_spec(),pre_layers=conv_layers,pre_combiner=None,fc_layer_params=(64,128,64))
+# value_net = value_network.ValueNetwork(env.observation_spec(),conv_layer_params=conv_params)
+# # test = bakamono_no1(time_step_spec=env.time_step_spec(),action_spec=env.action_spec(),observation_spec=env.observation_spec())
+# # print(env.observation_spec())
+# # print(env.time_step_spec()[-1])
+# # time_step = env.reset()
+# # action = test(time_step.observation,time_step.step_type)
+# # print(action)
+# # print(env.action_spec())
+# value_net.create_variables(env.observation_spec())
+# actor_net.create_variables(env.observation_spec())
+# print(actor_net.summary())
+# print(value_net.summary())
+# # agent = dqn_agent.DqnAgent(
+# #     env.time_step_spec(),
+# #     env.action_spec(),
+# #     q_network=q_net,
+# #     optimizer=tf.keras.optimizers.Adam(),
+# #     td_errors_loss_fn=common.element_wise_squared_loss
+# # )
+# # agent.initialize()
+# # agent.policy
+# agent = ReinforceAgent(time_step_spec=env.time_step_spec(),
+#                         action_spec=env.action_spec(),
+#                         actor_network=actor_net,
+#                         optimizer=tf.keras.optimizers.Adam(),
+#                         )
 # agent.initialize()
-# agent.policy
-agent = ReinforceAgent(time_step_spec=env.time_step_spec(),
-                        action_spec=env.action_spec(),
-                        actor_network=actor_net,
-                        optimizer=tf.keras.optimizers.Adam(),
-                        )
-agent.initialize()
-print(agent.policy)
-policy = agent.policy
-time_step = env.reset()
-action = policy.action(time_step)
-print(action)
-time_step = env.step(action)
-action = policy.action(time_step)
-print(list(action[0].numpy()[0].astype('int32')))
-# print(agent.collect_data_spec)
-replay_buffer_signature = tensor_spec.from_spec(
-      agent.collect_data_spec)
-replay_buffer_signature = tensor_spec.add_outer_dim(
-    replay_buffer_signature)
-print(replay_buffer_signature)
-print(action)
-print(action.action.numpy())
+# print(agent.policy)
+# policy = agent.policy
+# time_step = env.reset()
+# action = policy.action(time_step)
+# print(action)
+# time_step = env.step(action)
+# action = policy.action(time_step)
+# print(list(action[0].numpy()[0].astype('int32')))
+# # print(agent.collect_data_spec)
+# replay_buffer_signature = tensor_spec.from_spec(
+#       agent.collect_data_spec)
+# replay_buffer_signature = tensor_spec.add_outer_dim(
+#     replay_buffer_signature)
+# print(replay_buffer_signature)
+# print(action)
+# print(action.action.numpy())

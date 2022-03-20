@@ -14,11 +14,13 @@ from gameEnv import GomokuEnv
 from tf_agents.trajectories import time_step as ts
 from tf_agents.environments import tf_py_environment
 import tensorflow as tf
-from tf_agents.networks import value_network
+from tf_agents.networks import value_network,actor_distribution_network
 from tf_agents.agents import ReinforceAgent
 import tf_agents
-
-BOARD_SIZE = 16
+from tf_agents.replay_buffers import tf_uniform_replay_buffer
+from tf_agents.drivers.dynamic_episode_driver import DynamicEpisodeDriver
+from tqdm import tqdm
+BOARD_SIZE = 15
 
 
 class TrainGame():
@@ -40,6 +42,8 @@ class TrainGame():
         self.map.reset()
         self.AI.number = 0
         self.useAI = True
+        self.winner = None
+        
 
     def play(self):
         if self.is_play and not self.isOver():
@@ -83,39 +87,45 @@ class TrainEnv(GomokuEnv):
         # Action下一步棋，将坐标返回给gameAI再下一步棋，更新棋盘。返回该棋盘的observation
 
     def _reset(self):
+        
         self.game.start()
         self.game.play()
-        map = np.array(self.game.map.map)
+        map = np.array(self.game.map.map).T
         step = np.array(self.game.map.steps)
         self.update_state(map, step)
 
         self._rewards = 0.
-
+        print("="*80)
+        # print("was reseted")
         return ts.restart(self._observation)
 
     def _step(self, action):
         action = net.extend_action(action)
         x = action[0]
         y = action[1]
-
+        print(f"{x},{y}")
         if self._empty_state[x][y] == 0:
-            self._rewards = -10000.
+            print('abort empty')
+            self._rewards = -100.
+
             return ts.termination(self._observation, self._rewards)
 
         self.game.checkClick(x, y, False)
-        self._rewards -= 1.
+        self._rewards += 1.
         if self.game.winner == MAP_ENTRY_TYPE.MAP_PLAYER_TWO:
             self._rewards += 100.
+            print("win")
             return ts.termination(self._observation, self._rewards)
 
         self.game.play()
-        map = np.array(self.game.map.map)
+        map = np.array(self.game.map.map).T
         step = np.array(self.game.map.steps)
         self.update_state(map, step)
         if self.game.winner == MAP_ENTRY_TYPE.MAP_PLAYER_ONE:
             self._rewards -= 100.
+            print("loss")
             return ts.termination(self._observation, self._rewards)
-
+        # print(np.array(self.game.map.map))
         return ts.transition(self._observation, self._rewards)
 
 # while True:
@@ -132,6 +142,7 @@ class TrainEnv(GomokuEnv):
 #             game.check_buttons(mouse_x, mouse_y)
 
 env = TrainEnv()
+py_env = env
 env = tf_py_environment.TFPyEnvironment(env)
 conv_filters = 8
 k_size = (3,3)
@@ -158,8 +169,8 @@ value_net = value_network.ValueNetwork(env.observation_spec(),conv_layer_params=
 # print(env.action_spec())
 value_net.create_variables(env.observation_spec())
 actor_net.create_variables(env.observation_spec())
-print(actor_net.summary())
-print(value_net.summary())
+# print(actor_net.summary())
+# print(value_net.summary())
 # agent = dqn_agent.DqnAgent(
 #     env.time_step_spec(),
 #     env.action_spec(),
@@ -169,43 +180,49 @@ print(value_net.summary())
 # )
 # agent.initialize()
 # agent.policy
+actor_net = actor_distribution_network.ActorDistributionNetwork(
+    env.observation_spec(),
+    env.action_spec(),
+    fc_layer_params=(64,256,64))
 agent = ReinforceAgent(time_step_spec=env.time_step_spec(),
                         action_spec=env.action_spec(),
                         actor_network=actor_net,
                         optimizer=tf.keras.optimizers.Adam(),
                         )
 agent.initialize()
-print(agent.policy)
-policy = agent.policy
-time_step = env.reset()
-action = policy.action(time_step)
-print(action)
-time_step = env.step(action)
-action = policy.action(time_step)
-print(list(action[0].numpy()[0].astype('int32')))
-# print(agent.collect_data_spec)
-replay_buffer_signature = tensor_spec.from_spec(
-      agent.collect_data_spec)
-replay_buffer_signature = tensor_spec.add_outer_dim(
-    replay_buffer_signature)
-print(replay_buffer_signature)
-print(action)
-print(action.action.numpy())
+from tf_agents.metrics import py_metrics
+current_num_episodes = py_metrics.NumberOfEpisodes()
+def compute_avg_return(environment, policy, num_episodes=10):
+
+  total_return = 0.0
+  for _ in range(num_episodes):
+
+    time_step = environment.reset()
+    episode_return = 0.0
+
+    while not time_step.is_last():
+      action_step = policy.action(time_step)
+      time_step = environment.step(action_step.action)
+      episode_return += time_step.reward
+    total_return += episode_return
+
+  avg_return = total_return / num_episodes
+  return avg_return.numpy()[0]
 
 
 table_name = 'uniform_table'
-replay_buffer_capacity = 2000
 replay_buffer_signature = tensor_spec.from_spec(
-    agent.collect_data_spec)
+      agent.collect_data_spec)
 replay_buffer_signature = tensor_spec.add_outer_dim(
-    replay_buffer_signature)
+      replay_buffer_signature)
 table = reverb.Table(
     table_name,
-    max_size=replay_buffer_capacity,
+    max_size=1000,
     sampler=reverb.selectors.Uniform(),
     remover=reverb.selectors.Fifo(),
     rate_limiter=reverb.rate_limiters.MinSize(1),
     signature=replay_buffer_signature)
+
 reverb_server = reverb.Server([table])
 
 replay_buffer = reverb_replay_buffer.ReverbReplayBuffer(
@@ -217,93 +234,56 @@ replay_buffer = reverb_replay_buffer.ReverbReplayBuffer(
 rb_observer = reverb_utils.ReverbAddEpisodeObserver(
     replay_buffer.py_client,
     table_name,
-    replay_buffer_capacity
+    1000
 )
-
-random_policy = random_tf_policy.RandomTFPolicy(env.time_step_spec(),
-                                                env.action_spec())
-
-driver = py_driver.PyDriver(
-    env,
-    py_tf_eager_policy.PyTFEagerPolicy(
-        random_policy, use_tf_function=True),
-    [rb_observer],
-    max_episodes=2)
-
-print(driver)
-driver.run(env.reset())
 
 
 def collect_episode(environment, policy, num_episodes):
 
-    driver = py_driver.PyDriver(
-        environment,
-        py_tf_eager_policy.PyTFEagerPolicy(
-            policy, use_tf_function=True),
-        [rb_observer],
-        max_episodes=num_episodes)
-    initial_time_step = environment.reset()
+  driver = py_driver.PyDriver(
+    environment,
+    py_tf_eager_policy.PyTFEagerPolicy(
+      policy, use_tf_function=True),
+    [rb_observer,current_num_episodes],
+    max_episodes=num_episodes)
+  initial_time_step = environment.reset()
+  driver.run(initial_time_step)
 
-    driver.run(initial_time_step)
-
-
-num_iterations = 250  # @param {type:"integer"}
-collect_episodes_per_iteration = 2  # @param {type:"integer"}
-replay_buffer_capacity = 2000  # @param {type:"integer"}
-learning_rate = 1e-3  # @param {type:"number"}
-log_interval = 25  # @param {type:"integer"}
-num_eval_episodes = 10  # @param {type:"integer"}
-eval_interval = 50
-# (Optional) Optimize by wrapping some of the code in a graph using TF function.
 agent.train = common.function(agent.train)
 
 # Reset the train step
 agent.train_step_counter.assign(0)
 
 # Evaluate the agent's policy once before training.
+# avg_return = compute_avg_return(env, agent.policy, 10)
+# returns = [avg_return]
+
+for _ in tqdm(range(2000),desc='Training'):
+
+  # Collect a few episodes using collect_policy and save to the replay buffer.
+  collect_episode(
+      py_env, agent.collect_policy, 1)
+
+  # Use data from the buffer and update the agent's network.
+
+  
+
+  iterator = iter(replay_buffer.as_dataset(sample_batch_size=1))
+  trajectories, _ = next(iterator)
+  train_loss = agent.train(experience=trajectories)  
+
+  replay_buffer.clear()
+
+  step = agent.train_step_counter.numpy()
 
 
-def compute_avg_return(environment, policy, num_episodes=10):
-
-    total_return = 0.0
-    for _ in range(num_episodes):
-
-        time_step = environment.reset()
-        episode_return = 0.0
-
-        while not time_step.is_last():
-            action_step = policy.action(time_step)
-            time_step = environment.step(action_step.action)
-            episode_return += time_step.reward
-        total_return += episode_return
-
-    avg_return = total_return / num_episodes
-    return avg_return
-
-
-avg_return = compute_avg_return(env, agent.policy, num_eval_episodes)
-returns = [avg_return]
-
-for _ in range(num_iterations):
-
-    # Collect a few episodes using collect_policy and save to the replay buffer.
-    collect_episode(
-        env, agent.collect_policy, collect_episodes_per_iteration)
-
-    # Use data from the buffer and update the agent's network.
-    iterator = iter(replay_buffer.as_dataset(sample_batch_size=1))
-    trajectories, _ = next(iterator)
-    train_loss = agent.train(experience=trajectories)
-
-    replay_buffer.clear()
-
-    step = agent.train_step_counter.numpy()
-
-    if step % log_interval == 0:
-        print('step = {0}: loss = {1}'.format(step, train_loss.loss))
-
-    if step % eval_interval == 0:
-        avg_return = compute_avg_return(
-            game.env, agent.policy, num_eval_episodes)
-        print('step = {0}: Average Return = {1}'.format(step, avg_return))
-        returns.append(avg_return)
+  log_interval = 10
+  eval_interval = 50
+  if step % log_interval == 0:
+    print('\033[0;31;40m\tstep = {0}: loss = {1}\033[0m'.format(step, train_loss.loss))
+  if current_num_episodes.result() % 10 ==0:
+      print("\033[0;31;40m\tcurrent_episodes\033[0m",current_num_episodes.result())
+#   if step % eval_interval == 0:
+#     avg_return = compute_avg_return(env, agent.policy, 10)
+#     print('step = {0}: Average Return = {1}'.format(step, avg_return))
+#     returns.append(avg_return)
