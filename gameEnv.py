@@ -21,7 +21,7 @@ class GomokuEnv(py_environment.PyEnvironment):
     def __init__(self,board_size=15):
         super().__init__()
         self.board_size = board_size
-        self._action = array_spec.BoundedArraySpec(shape=(2,),dtype=np.float32,minimum=0,maximum=board_size-1,name='action')
+        self._action = array_spec.BoundedArraySpec(shape=(),dtype=np.float32,minimum=0,maximum=0.225,name='action')
         self._observation_spec = array_spec.BoundedArraySpec(shape=(board_size,board_size,3),maximum=1,dtype=np.float32,name='observation')
         # self._rewards_spec = array_spec.ArraySpec(shape=(1,),dtype=np.float32,name='reward')
         # self._current_state = np.zeros(shape=(board_size,board_size),dtype=np.float32)
@@ -63,6 +63,14 @@ class GomokuEnv(py_environment.PyEnvironment):
         self._current_state = self.split_map(map,2)
         self._empty_state = self.split_map(map,0)
         self._observation = np.stack((self._current_state,self._oppo_state,self._empty_state),axis=2)
+    
+    @staticmethod
+    def action_to_coordinate(action):
+        action = action*100
+        x = action / 15
+        y = action % 15
+        return np.array((x,y))
+
 
 
         # # TODO
